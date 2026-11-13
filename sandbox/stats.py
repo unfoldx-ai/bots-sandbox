@@ -34,5 +34,4 @@ def failure_rate(tasks):
 
 
 def pages(items, size):
-    count = len(items) // size
-    return [items[i * size:(i + 1) * size] for i in range(count)]
+    return [items[start:start + size] for start in range(0, len(items), size)]
