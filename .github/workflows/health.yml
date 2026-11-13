@@ -1,0 +1,40 @@
+name: health
+run-name: health ${{ inputs.expected_sha || github.event.workflow_run.head_sha || github.event_name }}
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 要核对的测试环境版本；留空只检查当前版本
+        required: false
+  workflow_run:
+    workflows: [deploy-test]
+    types: [completed]
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - id: health
+        run: python checks/health.py --url "https://unfoldx-ai.github.io/bots-sandbox" --expected-sha "${{ inputs.expected_sha || github.event.workflow_run.head_sha }}"
+      - name: Raise alarm
+        if: failure() && github.event_name != 'workflow_dispatch' && steps.health.outputs.ref == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT: ${{ steps.health.outputs.report }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="$(printf '测试环境健康检查失败。\n\n```\n%s\n```\n\n检查运行：%s' "$REPORT" "$RUN_URL")"
+          number="$(gh issue list -R "$GITHUB_REPOSITORY" --label alarm --state open --json number --jq '.[0].number')"
+          if [ -n "$number" ]; then gh issue comment "$number" -R "$GITHUB_REPOSITORY" --body "$body"
+          else gh issue create -R "$GITHUB_REPOSITORY" --label alarm --title "[报警] 测试环境健康检查失败" --body "$body"; fi

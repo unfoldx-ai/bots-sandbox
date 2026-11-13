@@ -1,0 +1,35 @@
+name: deploy-test
+run-name: deploy-test ${{ inputs.expected_sha }} (${{ github.ref_name }})
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 完整 40 位提交号，必须等于所选分支的当前提交
+        required: true
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: test-environment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify revision
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.expected_sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m sandbox.build --sha "${{ inputs.expected_sha }}" --ref "${{ github.ref_name }}"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: pages
+        uses: actions/deploy-pages@v4

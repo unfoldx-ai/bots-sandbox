@@ -1,0 +1,27 @@
+name: receipt
+run-name: receipt issue ${{ inputs.issue }}
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 要回执的 issue 编号
+        required: true
+      body:
+        description: 回执正文
+        required: true
+      close:
+        description: 回执后关闭
+        type: boolean
+        default: true
+permissions:
+  issues: write
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ inputs.body }}
+        run: |
+          gh issue comment "${{ inputs.issue }}" -R "$GITHUB_REPOSITORY" --body "$BODY"
+          if [ "${{ inputs.close }}" = "true" ]; then gh issue close "${{ inputs.issue }}" -R "$GITHUB_REPOSITORY"; fi
